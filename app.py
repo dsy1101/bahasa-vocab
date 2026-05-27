@@ -220,43 +220,41 @@ def inject_audio_engine():
         <script>
         (function(){
           const W = window.parent;
-          if (!W || W.__indoAudioReady) return;     // 이미 설정됨 → 중복 방지
-          W.__indoAudioReady = true;
-          W.__indoAudio = new Audio();
-          const SILENT = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA=';
-          function url(w){ return 'https://translate.google.com/translate_tts?ie=UTF-8&tl=id&client=tw-ob&q=' + encodeURIComponent(w); }
-          function synth(w){
+          if (!W || W.__indoReady) return;          // 이미 설정됨 → 중복 방지
+          W.__indoReady = true;
+          // 인도네시아어 음성 판별 (Android 레거시 'in', 음성 이름까지 폭넓게 인식)
+          function isId(v){
+            const l=(v.lang||'').toLowerCase().replace('_','-');
+            const n=(v.name||'').toLowerCase();
+            return l.startsWith('id')||l.startsWith('in-')||l==='in'
+                 ||n.indexOf('indonesia')>=0||n.indexOf('bahasa')>=0;
+          }
+          function idVoice(){ return (W.speechSynthesis.getVoices()||[]).find(isId)||null; }
+          function go(word, v){
+            if(!v) return;                          // 인니 음성 없으면 무음 (한국어로 읽지 않음)
             try {
-              const vs = W.speechSynthesis.getVoices()||[];
-              const v = vs.find(x=>x.lang && x.lang.toLowerCase().replace('_','-').startsWith('id'));
-              if(!v) return;          // 인니 음성이 없으면 한국어로 읽지 말고 무음 처리
               W.speechSynthesis.cancel();
-              const u = new W.SpeechSynthesisUtterance(w);
-              u.lang='id-ID'; u.rate=0.9; u.voice=v;
+              const u = new W.SpeechSynthesisUtterance(word);
+              u.lang='id-ID'; u.rate=0.95; u.voice=v;
               W.speechSynthesis.speak(u);
             } catch(e){}
           }
           W.playIndo = function(word){
-            try {
-              const a = W.__indoAudio;
-              a.muted = false; a.src = url(word);
-              const p = a.play();
-              if (p && p.catch) p.catch(()=>synth(word));
-            } catch(e){ synth(word); }
+            let v = idVoice();
+            if(v){ go(word, v); return; }
+            // 음성 목록 로딩 대기 후 재시도 (최대 ~1.8초)
+            let n=0; const t=setInterval(()=>{ v=idVoice(); n++; if(v||n>15){ clearInterval(t); go(word, v); } }, 120);
           };
-          // 첫 제스처(탭/클릭)에서 무음 재생 → 오디오 잠금 해제 (이후 자동재생 허용)
+          // 첫 제스처(탭/클릭)에서 무음 발화로 음성 합성 잠금 해제 (이후 자동재생 허용)
           function unlock(){
-            try {
-              const a = W.__indoAudio;
-              a.src = SILENT;
-              const p = a.play();
-              if (p && p.then) p.then(()=>a.pause()).catch(()=>{});
-            } catch(e){}
+            try { const u=new W.SpeechSynthesisUtterance(' '); u.volume=0; W.speechSynthesis.speak(u); } catch(e){}
             W.document.removeEventListener('click', unlock, true);
             W.document.removeEventListener('touchstart', unlock, true);
           }
           W.document.addEventListener('click', unlock, true);
           W.document.addEventListener('touchstart', unlock, true);
+          // 음성 목록 미리 로드 트리거
+          try { W.speechSynthesis.getVoices(); W.speechSynthesis.onvoiceschanged=function(){}; } catch(e){}
         })();
         </script>
         """,
@@ -350,29 +348,33 @@ def tts_component(word: str):
         </button>
         <script>
         const WORD = '{safe}';
-        const gURL = 'https://translate.google.com/translate_tts?ie=UTF-8&tl=id&client=tw-ob&q='
-                     + encodeURIComponent(WORD);
-        function play() {{
-            // 1순위: 부모 페이지의 영구 오디오 엔진(잠금 해제돼 있으면 탭 없이도 재생)
+        function isId(v){{
+            const l=(v.lang||'').toLowerCase().replace('_','-');
+            const n=(v.name||'').toLowerCase();
+            return l.startsWith('id')||l.startsWith('in-')||l==='in'
+                 ||n.indexOf('indonesia')>=0||n.indexOf('bahasa')>=0;
+        }}
+        function idVoice(){{ return (window.speechSynthesis.getVoices()||[]).find(isId)||null; }}
+        function go(v){{
+            if(!v) return;                 // 인니 음성 없으면 무음 (한국어로 읽지 않음)
             try {{
-                if (window.parent && window.parent.playIndo) {{ window.parent.playIndo(WORD); return; }}
-            }} catch(e) {{}}
-            // 폴백: 이 프레임에서 구글 인니어 음원 직접 재생 (탭 제스처면 동작)
-            try {{
-                const a = new Audio(gURL);
-                a.play().catch(() => {{
-                    // 구글 음원 실패 시: 인니 음성이 있을 때만 내장 음성 사용 (없으면 무음 — 한국어로 읽지 않음)
-                    const vs = window.speechSynthesis.getVoices() || [];
-                    const v = vs.find(x => x.lang && x.lang.toLowerCase().replace('_','-').startsWith('id'));
-                    if (!v) return;
-                    const u = new SpeechSynthesisUtterance(WORD);
-                    u.lang = 'id-ID'; u.rate = 0.9; u.voice = v; window.speechSynthesis.speak(u);
-                }});
+                window.speechSynthesis.cancel();
+                const u = new SpeechSynthesisUtterance(WORD);
+                u.lang='id-ID'; u.rate=0.95; u.voice=v;
+                window.speechSynthesis.speak(u);
             }} catch(e) {{}}
         }}
+        function localSpeak(){{
+            let v=idVoice(); if(v){{ go(v); return; }}
+            let n=0; const t=setInterval(()=>{{ v=idVoice(); n++; if(v||n>15){{ clearInterval(t); go(v); }} }}, 120);
+        }}
+        function play(){{
+            // 1순위: 부모 엔진(잠금 해제돼 있으면 탭 없이도 재생) → 실패 시 이 프레임에서 직접
+            try {{ if (window.parent && window.parent.playIndo) {{ window.parent.playIndo(WORD); return; }} }} catch(e) {{}}
+            localSpeak();
+        }}
         document.getElementById('spk').onclick = play;
-        // 자동재생 시도: 오디오가 잠금 해제돼 있으면 탭 없이 바로 들림
-        setTimeout(play, 150);
+        setTimeout(play, 200);   // 잠금 해제돼 있으면 자동 재생
         </script>
         """,
         height=54,
