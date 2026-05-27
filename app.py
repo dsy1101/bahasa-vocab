@@ -208,6 +208,62 @@ def _js_safe(s: str) -> str:
     return s.replace("\\", "\\\\").replace("'", "\\'")
 
 
+def inject_audio_engine():
+    """
+    앱(부모) 페이지에 '한 번 잠금 해제하면 세션 내내 유지되는' 오디오 엔진을 심는다.
+    - 첫 사용자 탭에서 무음을 재생해 오디오를 잠금 해제 → 이후 카드마다 탭 없이 자동재생
+    - window.parent.playIndo(word): 구글 TTS(id)로 인니 발음, 실패 시 내장 음성 폴백
+    Streamlit 재실행마다 호출되지만 플래그(__indoAudioReady)로 1회만 설정한다.
+    """
+    components.html(
+        """
+        <script>
+        (function(){
+          const W = window.parent;
+          if (!W || W.__indoAudioReady) return;     // 이미 설정됨 → 중복 방지
+          W.__indoAudioReady = true;
+          W.__indoAudio = new Audio();
+          const SILENT = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA=';
+          function url(w){ return 'https://translate.google.com/translate_tts?ie=UTF-8&tl=id&client=tw-ob&q=' + encodeURIComponent(w); }
+          function synth(w){
+            try {
+              W.speechSynthesis.cancel();
+              const u = new W.SpeechSynthesisUtterance(w);
+              u.lang='id-ID'; u.rate=0.9;
+              const vs = W.speechSynthesis.getVoices()||[];
+              const v = vs.find(x=>x.lang && x.lang.toLowerCase().replace('_','-').startsWith('id'));
+              if(v) u.voice=v;
+              W.speechSynthesis.speak(u);
+            } catch(e){}
+          }
+          W.playIndo = function(word){
+            try {
+              const a = W.__indoAudio;
+              a.muted = false; a.src = url(word);
+              const p = a.play();
+              if (p && p.catch) p.catch(()=>synth(word));
+            } catch(e){ synth(word); }
+          };
+          // 첫 제스처(탭/클릭)에서 무음 재생 → 오디오 잠금 해제 (이후 자동재생 허용)
+          function unlock(){
+            try {
+              const a = W.__indoAudio;
+              a.src = SILENT;
+              const p = a.play();
+              if (p && p.then) p.then(()=>a.pause()).catch(()=>{});
+            } catch(e){}
+            W.document.removeEventListener('click', unlock, true);
+            W.document.removeEventListener('touchstart', unlock, true);
+          }
+          W.document.addEventListener('click', unlock, true);
+          W.document.addEventListener('touchstart', unlock, true);
+        })();
+        </script>
+        """,
+        height=0,
+    )
+
+
 def speech_component(answer: str):
     """
     Web Speech API(webkitSpeechRecognition) 음성 인식 버튼.
@@ -292,39 +348,30 @@ def tts_component(word: str):
                 background:#047857;color:#fff;font-weight:800;font-size:1.02rem;cursor:pointer;">
           🔊 인니 발음 듣기
         </button>
-        <audio id="au" preload="auto"></audio>
         <script>
         const WORD = '{safe}';
-        const au = document.getElementById('au');
-        const btn = document.getElementById('spk');
-        // 인도네시아어 발음을 보장하는 구글 번역 TTS 음원
         const gURL = 'https://translate.google.com/translate_tts?ie=UTF-8&tl=id&client=tw-ob&q='
                      + encodeURIComponent(WORD);
-        function speakSynth() {{
+        function play() {{
+            // 1순위: 부모 페이지의 영구 오디오 엔진(잠금 해제돼 있으면 탭 없이도 재생)
             try {{
-                window.speechSynthesis.cancel();
-                const u = new SpeechSynthesisUtterance(WORD);
-                u.lang = 'id-ID'; u.rate = 0.9;
-                const vs = window.speechSynthesis.getVoices() || [];
-                const v = vs.find(x => x.lang && x.lang.toLowerCase().replace('_','-').startsWith('id'));
-                if (v) u.voice = v;
-                window.speechSynthesis.speak(u);
+                if (window.parent && window.parent.playIndo) {{ window.parent.playIndo(WORD); return; }}
+            }} catch(e) {{}}
+            // 폴백: 이 프레임에서 직접 재생 (탭 제스처면 동작)
+            try {{
+                const a = new Audio(gURL);
+                a.play().catch(() => {{
+                    const u = new SpeechSynthesisUtterance(WORD);
+                    u.lang = 'id-ID'; u.rate = 0.9; window.speechSynthesis.speak(u);
+                }});
             }} catch(e) {{}}
         }}
-        function play() {{
-            try {{
-                au.src = gURL;
-                const p = au.play();
-                if (p && p.catch) p.catch(() => speakSynth());  // 재생 거부(모바일 등) 시 폴백
-            }} catch(e) {{ speakSynth(); }}
-        }}
-        au.onerror = () => speakSynth();   // 구글 TTS 로드 실패 시 폴백
-        btn.onclick = play;
-        // 데스크톱은 자동재생 시도 (모바일은 차단되므로 🔊 탭으로 들음)
-        setTimeout(play, 250);
+        document.getElementById('spk').onclick = play;
+        // 자동재생 시도: 오디오가 잠금 해제돼 있으면 탭 없이 바로 들림
+        setTimeout(play, 150);
         </script>
         """,
-        height=56,
+        height=54,
     )
 
 
@@ -534,6 +581,7 @@ def main():
     init_state()
     inject_mobile_css()
     inject_pwa()
+    inject_audio_engine()  # 한 번 잠금 해제하면 세션 내내 발음 자동재생
 
     # 자동 로그인: 설정된 계정이 있고, 이 세션에서 수동 로그아웃하지 않았다면 로그인 화면을 건너뜀
     if not st.session_state.user_id and not st.session_state._logged_out:
