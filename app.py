@@ -280,40 +280,51 @@ def speech_component(answer: str):
 
 def tts_component(word: str):
     """
-    정답 단어를 인도네시아어 음성(SpeechSynthesis, id-ID)으로 재생한다.
-    정답 공개 직후 자동 재생을 시도하고, '🔊 발음 듣기' 버튼으로 다시 들을 수 있다.
+    정답 단어를 인도네시아어 발음으로 재생한다.
+    1순위: 구글 번역 TTS(tl=id) MP3 — 기기에 인니 음성이 없어도 정확한 인니 발음 보장.
+    2순위(폴백): 브라우저 내장 SpeechSynthesis(id-ID) — 구글 TTS 재생 실패 시.
+    모바일은 자동재생이 차단되므로 🔊 버튼 '탭'으로 재생한다(탭 제스처면 확실히 들림).
     """
     safe = _js_safe(word)
     components.html(
         f"""
-        <button id="spk" style="width:100%;min-height:42px;border:none;border-radius:12px;
-                background:#047857;color:#fff;font-weight:700;font-size:0.95rem;cursor:pointer;">
+        <button id="spk" style="width:100%;min-height:48px;border:none;border-radius:12px;
+                background:#047857;color:#fff;font-weight:800;font-size:1.02rem;cursor:pointer;">
           🔊 인니 발음 듣기
         </button>
+        <audio id="au" preload="auto"></audio>
         <script>
         const WORD = '{safe}';
-        function pickVoice() {{
-            const vs = window.speechSynthesis.getVoices() || [];
-            return vs.find(v => v.lang && v.lang.toLowerCase().startsWith('id')) || null;
-        }}
-        function speak() {{
+        const au = document.getElementById('au');
+        const btn = document.getElementById('spk');
+        // 인도네시아어 발음을 보장하는 구글 번역 TTS 음원
+        const gURL = 'https://translate.google.com/translate_tts?ie=UTF-8&tl=id&client=tw-ob&q='
+                     + encodeURIComponent(WORD);
+        function speakSynth() {{
             try {{
                 window.speechSynthesis.cancel();
                 const u = new SpeechSynthesisUtterance(WORD);
-                u.lang = 'id-ID'; u.rate = 0.95; u.pitch = 1.0;
-                const v = pickVoice(); if(v) u.voice = v;
+                u.lang = 'id-ID'; u.rate = 0.9;
+                const vs = window.speechSynthesis.getVoices() || [];
+                const v = vs.find(x => x.lang && x.lang.toLowerCase().replace('_','-').startsWith('id'));
+                if (v) u.voice = v;
                 window.speechSynthesis.speak(u);
             }} catch(e) {{}}
         }}
-        document.getElementById('spk').onclick = speak;
-        // 정답 공개 직후 자동 재생 (음성 목록 로딩 지연 대응)
-        if (window.speechSynthesis.getVoices().length === 0) {{
-            window.speechSynthesis.onvoiceschanged = () => setTimeout(speak, 50);
+        function play() {{
+            try {{
+                au.src = gURL;
+                const p = au.play();
+                if (p && p.catch) p.catch(() => speakSynth());  // 재생 거부(모바일 등) 시 폴백
+            }} catch(e) {{ speakSynth(); }}
         }}
-        setTimeout(speak, 300);
+        au.onerror = () => speakSynth();   // 구글 TTS 로드 실패 시 폴백
+        btn.onclick = play;
+        // 데스크톱은 자동재생 시도 (모바일은 차단되므로 🔊 탭으로 들음)
+        setTimeout(play, 250);
         </script>
         """,
-        height=48,
+        height=56,
     )
 
 
