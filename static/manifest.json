@@ -1,0 +1,19 @@
+{
+  "name": "인니어 스마트 복습",
+  "short_name": "인니어복습",
+  "description": "라이트너 알고리즘 기반 인도네시아어 단어 복습 앱",
+  "start_url": "../",
+  "scope": "../",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#FF5A5F",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

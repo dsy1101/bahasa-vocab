@@ -1,0 +1,4 @@
+# 인니어 스마트 복습 웹앱 — 배포 의존성
+# 표준 라이브러리(sqlite3, hashlib, re, datetime)만으로 동작하도록 설계했으므로
+# 외부 의존성은 streamlit 하나만 필요합니다.
+streamlit>=1.33.0

@@ -1,0 +1,14 @@
+# Streamlit 배포/모바일 설정
+[theme]
+base = "light"
+primaryColor = "#FF5A5F"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f4f6fa"
+
+[server]
+headless = true
+# PWA manifest/아이콘을 app/static/ 경로로 정적 서빙 (홈 화면 추가 지원)
+enableStaticServing = true
+
+[browser]
+gatherUsageStats = false

@@ -1,0 +1,10 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# 로컬 SQLite DB — 배포 환경에서 새로 생성됨 (커밋하지 않음)
+vocab.db
+
+# 로컬 자동로그인/비밀 설정 — 배포 비밀은 Streamlit Cloud 대시보드에 입력
+.streamlit/secrets.toml
