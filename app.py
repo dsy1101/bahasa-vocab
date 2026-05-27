@@ -227,12 +227,12 @@ def inject_audio_engine():
           function url(w){ return 'https://translate.google.com/translate_tts?ie=UTF-8&tl=id&client=tw-ob&q=' + encodeURIComponent(w); }
           function synth(w){
             try {
-              W.speechSynthesis.cancel();
-              const u = new W.SpeechSynthesisUtterance(w);
-              u.lang='id-ID'; u.rate=0.9;
               const vs = W.speechSynthesis.getVoices()||[];
               const v = vs.find(x=>x.lang && x.lang.toLowerCase().replace('_','-').startsWith('id'));
-              if(v) u.voice=v;
+              if(!v) return;          // 인니 음성이 없으면 한국어로 읽지 말고 무음 처리
+              W.speechSynthesis.cancel();
+              const u = new W.SpeechSynthesisUtterance(w);
+              u.lang='id-ID'; u.rate=0.9; u.voice=v;
               W.speechSynthesis.speak(u);
             } catch(e){}
           }
@@ -357,12 +357,16 @@ def tts_component(word: str):
             try {{
                 if (window.parent && window.parent.playIndo) {{ window.parent.playIndo(WORD); return; }}
             }} catch(e) {{}}
-            // 폴백: 이 프레임에서 직접 재생 (탭 제스처면 동작)
+            // 폴백: 이 프레임에서 구글 인니어 음원 직접 재생 (탭 제스처면 동작)
             try {{
                 const a = new Audio(gURL);
                 a.play().catch(() => {{
+                    // 구글 음원 실패 시: 인니 음성이 있을 때만 내장 음성 사용 (없으면 무음 — 한국어로 읽지 않음)
+                    const vs = window.speechSynthesis.getVoices() || [];
+                    const v = vs.find(x => x.lang && x.lang.toLowerCase().replace('_','-').startsWith('id'));
+                    if (!v) return;
                     const u = new SpeechSynthesisUtterance(WORD);
-                    u.lang = 'id-ID'; u.rate = 0.9; window.speechSynthesis.speak(u);
+                    u.lang = 'id-ID'; u.rate = 0.9; u.voice = v; window.speechSynthesis.speak(u);
                 }});
             }} catch(e) {{}}
         }}
