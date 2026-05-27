@@ -118,6 +118,46 @@ def inject_pwa():
     )
 
 
+def inject_inapp_browser_warning():
+    """
+    카톡/인스타/페북/라인 등 '인앱 브라우저'에서는 음성(TTS/마이크)이 막힌다.
+    해당 환경을 감지해 '크롬·사파리에서 열기' 안내 배너를 상단에 띄운다.
+    (안드로이드는 크롬으로 바로 여는 버튼 제공 / iOS는 메뉴 안내)
+    """
+    components.html(
+        """
+        <script>
+        (function(){
+          const W = window.parent;
+          if(!W) return;
+          const ua = (W.navigator.userAgent || '');
+          const inApp = /KAKAOTALK|Instagram|FBAN|FBAV|FB_IAB|Line\\/|NAVER|DaumApps|; wv\\)/i.test(ua);
+          if(!inApp) return;
+          if(W.document.getElementById('inapp-warn')) return;
+          const d = W.document.createElement('div');
+          d.id = 'inapp-warn';
+          d.style.cssText = 'position:sticky;top:0;z-index:99999;background:#fff3cd;color:#7a5c00;'
+            + 'padding:10px 12px;font-size:13px;line-height:1.45;border-bottom:1px solid #ffe08a;text-align:center;';
+          d.innerHTML = '\\uD83D\\uDD0A 음성 기능은 <b>크롬·사파리</b>에서 열어야 작동해요.<br>'
+            + '우측 메뉴(⋮ 또는 공유) → <b>“다른 브라우저로 열기 / Safari로 열기”</b>';
+          if(/Android/i.test(ua)){
+            const url = W.location.host + W.location.pathname + W.location.search;
+            const a = W.document.createElement('a');
+            a.href = 'intent://' + url + '#Intent;scheme=https;package=com.android.chrome;end';
+            a.textContent = '👉 크롬으로 열기';
+            a.style.cssText = 'display:inline-block;margin-top:7px;background:#2563eb;color:#fff;'
+              + 'padding:7px 16px;border-radius:9px;text-decoration:none;font-weight:800;';
+            d.appendChild(W.document.createElement('br'));
+            d.appendChild(a);
+          }
+          W.document.body.insertBefore(d, W.document.body.firstChild);
+        })();
+        </script>
+        """,
+        height=0,
+    )
+
+
 # ---------------------------------------------------------------------------
 # 세션 상태
 # ---------------------------------------------------------------------------
@@ -587,6 +627,7 @@ def main():
     init_state()
     inject_mobile_css()
     inject_pwa()
+    inject_inapp_browser_warning()  # 카톡 등 인앱 브라우저면 '크롬/사파리로 열기' 안내
     inject_audio_engine()  # 한 번 잠금 해제하면 세션 내내 발음 자동재생
 
     # 자동 로그인: 설정된 계정이 있고, 이 세션에서 수동 로그아웃하지 않았다면 로그인 화면을 건너뜀
